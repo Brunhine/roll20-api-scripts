@@ -350,13 +350,13 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             },        
             
             getConfigOptionGroup_General : function (options, optionsSpec) {
-                return '<div><h2>General Options:</h2><dl style="margin-top: 0;">' +
+                return '<div><h3>General Options:</h3><dl style="margin-top: 0;">' +
                     this.getConfigOption_LogLevel(options, optionsSpec) + 
                     '</dl></div>';
             },
             
             getConfigOptionGroup_Tokens : function (options, optionsSpec) {
-                return '<div><h2>Token Options:</h2><dl style="margin-top: 0;">' +
+                return '<div><h3>Token Options:</h3><dl style="margin-top: 0;">' +
                     this.getConfigOption_Tokens_Numbered(options, optionsSpec) + 
                     this.getConfigOption_Tokens_ShowName(options, optionsSpec) + 
                     this.getConfigOption_Tokens_ShowNameToPlayers(options, optionsSpec) + 
@@ -365,7 +365,7 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             },
             
             getConfigOptionGroup_NewCharSettings : function (options, optionsSpec) {
-                return '<div><h2>New Characters:</h2><dl>' +
+                return '<div><h3>New Characters:</h3><dl>' +
                     this.getConfigOption_NewCharSettings_sheetOutput(options, optionsSpec) +
                     this.getConfigOption_NewCharSettings_deathSaveOutput(options, optionsSpec) +
                     this.getConfigOption_NewCharSettings_initiativeOutput(options, optionsSpec) +
@@ -381,7 +381,9 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             },
             
             getConfigOption_LogLevel : function (options, optionsSpec) {
-                return '<dt>Log Level</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --logLevel ?{Logging Level? (use with care)?|INFO|ERROR|WARN|DEBUG|TRACE}">' + options.logLevel + '</dd>';
+                return '<dt>Log Level</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --logLevel ?{Logging Level? (use with care)?|INFO|ERROR|WARN|DEBUG|TRACE}">' + 
+                        options.logLevel + '</dd>';
             },
             
             getConfigOption_Tokens_Numbered : function (options, optionsSpec) {
@@ -391,11 +393,15 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             }, 
             
             getConfigOption_Tokens_ShowName : function (options, optionsSpec) {
-                return '<dt>Show Name Tag</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --tokenSettings.showName ?{Show Name Tag?|Yes,true|No,false}">' + options.tokenSettings.showName + '</a></dd>';
+                return '<dt>Show Name Tag</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --tokenSettings.showName ?{Show Name Tag?|Yes,true|No,false}">' + 
+                        options.tokenSettings.showName + '</a></dd>';
             },
             
             getConfigOption_Tokens_ShowNameToPlayers : function (options, optionsSpec) {
-                return '<dt>Show Name to Players</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --tokenSettings.showNameToPlayers ?{Show Name Tag To Players?|Yes,true|No,false}">' + options.tokenSettings.showNameToPlayers + '</a></dd>';
+                return '<dt>Show Name to Players</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --tokenSettings.showNameToPlayers ?{Show Name Tag To Players?|Yes,true|No,false}">' + 
+                        options.tokenSettings.showNameToPlayers + '</a></dd>';
             },
             
             getConfigOption_Tokens_Bars : function (options, optionsSpec) {
@@ -420,25 +426,31 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             },
             
             getConfigOption_NewCharSettings_sheetOutput : function (options, optionsSpec) {
-                
+                var optVal = _.invert(optionsSpec.newCharSettings.sheetOutput())[options.newCharSettings.sheetOutput];
                 return '<dt>Sheet Output</dt><dd style="margin-bottom: 9px">' +
                         '<a href="!shaped-config --newCharSettings.sheetOutput ?{Sheet Output?|Public,public|Whisper to GM,whisper}">' +
-                         //optVal + 
-                         '</a></dd>';
+                         optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_deathSaveOutput : function (options, optionsSpec) {
-                return '<dt>Death Save Output</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.deathSaveOutput ?{Death Save Output?|Public,public|Whisper to GM,whisper}">' + options.newCharSettings.deathSaveOutput + '</a></dd>';
+                var optVal = _.invert(optionsSpec.newCharSettings.deathSaveOutput())[options.newCharSettings.deathSaveOutput];
+                return '<dt>Death Save Output</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.deathSaveOutput ?{Death Save Output?|Public,public|Whisper to GM,whisper}">' +
+                        optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_initiativeOutput : function (options, optionsSpec) {
-                return '<dt>Initiative Output</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.initiativeOutput ?{Initiative Output?|Public,public|Whisper to GM,whisper}">' + options.newCharSettings.initiativeOutput + '</a></dd>';
+                var optVal = _.invert(optionsSpec.newCharSettings.initiativeOutput())[options.newCharSettings.initiativeOutput];
+                return '<dt>Initiative Output</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.initiativeOutput ?{Initiative Output?|Public,public|Whisper to GM,whisper}">' +
+                        optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_showNameOnRollTemplate : function (options, optionsSpec) {
+                var optVal = _.invert(optionsSpec.newCharSettings.showNameOnRollTemplate())[options.newCharSettings.showNameOnRollTemplate];
                 return '<dt>Show Name on Roll Template</dt><dd style="margin-bottom: 9px">' + 
                         '<a href="!shaped-config --newCharSettings.showNameOnRollTemplate ?{Show Name on Roll Template?|Yes,true|No,false}">' +
-                         options.newCharSettings.showNameOnRollTemplate + '</a></dd>';
+                         optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_rollOptions : function (options, optionsSpec) {
@@ -456,23 +468,38 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             },
             
             getConfigOption_NewCharSettings_initiativeToTracker : function (options, optionsSpec) {
-                return '<dt>Init To Tracker</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.initiativeToTracker ?{Initiative Sent To Tracker?|Yes,true|No,false}">' + options.newCharSettings.initiativeToTracker + '</a></dd>';
+                var optVal = _.invert(optionsSpec.newCharSettings.initiativeToTracker())[options.newCharSettings.initiativeToTracker];
+                return '<dt>Init To Tracker</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.initiativeToTracker ?{Initiative Sent To Tracker?|Yes,true|No,false}">' + 
+                        optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_breakInitiativeTies : function (options, optionsSpec) {
-                return '<dt>Break Init Ties</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.breakInitiativeTies ?{Break Initiative Ties?|Yes,true|No,false}">' + options.newCharSettings.breakInitiativeTies + '</a></dd>';
+                var optVal = _.invert(optionsSpec.newCharSettings.breakInitiativeTies())[options.newCharSettings.breakInitiativeTies];
+                return '<dt>Break Init Ties</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.breakInitiativeTies ?{Break Initiative Ties?|Yes,true|No,false}">' + 
+                        optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_showTargetAC : function (options, optionsSpec) {
-                return '<dt>Show Target AC</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.showTargetAC ?{Show Target AC?|Yes,true|No,false}">' + options.newCharSettings.showTargetAC + '</a></dd>';
+                var optVal = _.invert(optionsSpec.newCharSettings.showTargetAC())[options.newCharSettings.showTargetAC];
+                return '<dt>Show Target AC</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.showTargetAC ?{Show Target AC?|Yes,true|No,false}">' + 
+                        optVal + '</a></dd>';
             },
             
-            getConfigOption_NewCharSettings_showTargetName : function (options, optionsSpec) {                
-                return '<dt>Show Target Name</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.showTargetName ?{Show Target Name?|Yes,true|No,false}">' + options.newCharSettings.showTargetName + '</a></dd>';
+            getConfigOption_NewCharSettings_showTargetName : function (options, optionsSpec) {
+                var optVal = _.invert(optionsSpec.newCharSettings.showTargetName())[options.newCharSettings.showTargetName];             
+                return '<dt>Show Target Name</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.showTargetName ?{Show Target Name?|Yes,true|No,false}">' + 
+                        optVal + '</a></dd>';
             },
             
             getConfigOption_NewCharSettings_autoAmmo : function (options, optionsSpec) {
-                return '<dt>Auto Use Ammo</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.autoAmmo ?{Auto use Ammo?|Yes,true|No,false}">' + options.newCharSettings.autoAmmo + '</a></dd>';
+                var optVal = _.invert(optionsSpec.newCharSettings.autoAmmo())[options.newCharSettings.autoAmmo];
+                return '<dt>Auto Use Ammo</dt><dd style="margin-bottom: 9px">' + 
+                        '<a href="!shaped-config --newCharSettings.autoAmmo ?{Auto use Ammo?|Yes,true|No,false}">' + 
+                        optVal + '</a></dd>';
             },
         },
         
