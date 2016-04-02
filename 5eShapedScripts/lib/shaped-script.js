@@ -337,11 +337,138 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
         },
 
         /////////////////////////////////////////
+        // Configuration UI
+        /////////////////////////////////////////      
+        configUI : {
+            getConfigOptions : function (options) {
+                return this.getConfigOptionGroup_General(options) + 
+                        this.getConfigOptionGroup_Tokens(options) +
+                        this.getConfigOptionGroup_NewCharSettings(options);
+            },        
+            
+            getConfigOptionGroup_General : function (options) {
+                return '<div><h2>General Options:</h2><dl style="margin-top: 0;">' +
+                    this.getConfigOption_LogLevel(options) + 
+                    '</dl></div>';
+            },
+            
+            getConfigOptionGroup_Tokens : function (options) {
+                return '<div><h2>Token Options:</h2><dl style="margin-top: 0;">' +
+                    this.getConfigOption_Tokens_Numbered(options) + 
+                    this.getConfigOption_Tokens_ShowName(options) + 
+                    this.getConfigOption_Tokens_ShowNameToPlayers(options) + 
+                    this.getConfigOption_Tokens_Bars(options) + 
+                    '</dl></div>';
+            },
+            
+            getConfigOptionGroup_NewCharSettings : function (options) {
+                return '<div><h2>New Characters:</h2><dl>' +
+                    this.getConfigOption_NewCharSettings_sheetOutput(options) +
+                    this.getConfigOption_NewCharSettings_deathSaveOutput(options) +
+                    this.getConfigOption_NewCharSettings_initiativeOutput(options) +
+                    this.getConfigOption_NewCharSettings_showNameOnRollTemplate(options) +
+                    this.getConfigOption_NewCharSettings_rollOptions(options) +
+                    this.getConfigOption_NewCharSettings_initiativeRoll(options) +
+                    this.getConfigOption_NewCharSettings_initiativeToTracker(options) +
+                    this.getConfigOption_NewCharSettings_breakInitiativeTies(options) +
+                    this.getConfigOption_NewCharSettings_showTargetAC(options) +
+                    this.getConfigOption_NewCharSettings_showTargetName(options) +
+                    this.getConfigOption_NewCharSettings_autoAmmo(options) +
+                    '</dl></div>';
+            },
+            
+            getConfigOption_LogLevel : function (options) {
+                return '<dt>Log Level</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --logLevel ?{Logging Level? (use with care)?|INFO|ERROR|WARN|DEBUG|TRACE}">' + options.logLevel + '</dd>';
+            },
+            
+            getConfigOption_Tokens_Numbered : function (options) {
+                return '<dt>Numbered Tokens</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --tokenSettings.number ?{Make Numbered Tokens (for TNN script)?|Yes,true|No,false}">' + options.tokenSettings.number + '</a></dd>';
+            }, 
+            
+            getConfigOption_Tokens_ShowName : function (options) {
+                return '<dt>Show Name Tag</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --tokenSettings.showName ?{Show Name Tag?|Yes,true|No,false}">' + options.tokenSettings.showName + '</a></dd>';
+            },
+            
+            getConfigOption_Tokens_ShowNameToPlayers : function (options) {
+                return '<dt>Show Name to Players</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --tokenSettings.showNameToPlayers ?{Show Name Tag To Players?|Yes,true|No,false}">' + options.tokenSettings.showNameToPlayers + '</a></dd>';
+            },
+            
+            getConfigOption_Tokens_Bars : function (options) {
+                var settings = options.tokenSettings;
+                var res = '';
+                
+                _.chain(settings).pick(['bar1', 'bar2', 'bar3']).each(function (bar, barName) {
+                    var attribute = bar.attribute;
+                    if (!bar.attribute) {
+                        attribute = '[not set]';
+                    }
+                    res += '<dt>Options for ' + barName + '</dt>' + 
+                            '<dd style="margin-bottom: 9px"><table style="font-size: 1em;">' + 
+                            '<tr><td>Attribute:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.attribute ?{Attribute for bar? (leave empty to clear)}">' + attribute + '</a></td></tr>' + 
+                            '<tr><td>Set Max:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.max ?{Set bar max value?|Yes,true|No,false}">' + bar.max + '</td></tr>' + 
+                            '<tr><td>Link Bar:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.link ?{Keep bar linked?|Yes,true|No,false}">' + bar.link + '</a></td></tr > ' + 
+                            '<tr><td>Show to Players:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.showPlayers ?{Show bar to players?|Yes,true|No,false}">' + bar.showPlayers + '</td></tr>' + 
+                            '</table></dd>';
+                });
+                
+                return res;
+            },
+            
+            getConfigOption_NewCharSettings_sheetOutput : function (options) {
+                
+                return '<dt>Sheet Output</dt><dd style="margin-bottom: 9px">' +
+                        '<a href="!shaped-config --newCharSettings.sheetOutput ?{Sheet Output?|Public,public|Whisper to GM,whisper}">' +
+                         //optVal + 
+                         '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_deathSaveOutput : function (options) {
+                return '<dt>Death Save Output</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.deathSaveOutput ?{Death Save Output?|Public,public|Whisper to GM,whisper}">' + options.newCharSettings.deathSaveOutput + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_initiativeOutput : function (options) {
+                return '<dt>Initiative Output</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.initiativeOutput ?{Initiative Output?|Public,public|Whisper to GM,whisper}">' + options.newCharSettings.initiativeOutput + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_showNameOnRollTemplate : function (options) {
+                return '<dt>Show Name on Roll Template</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.showNameOnRollTemplate ?{Show Name on Roll Template?|Yes,true|No,false}">' + options.newCharSettings.showNameOnRollTemplate + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_rollOptions : function (options) {
+                return '<dt>Roll Option</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.rollOptions ?{Roll Option?|Normal,normal|Advantage,advantage|Disadvantage,disadvantage|Roll Two,two}">' + options.newCharSettings.rollOptions + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_initiativeRoll : function (options) {
+                return '<dt>Init Roll</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.initiativeRoll ?{Initiative Roll?|Normal,normal|Advantage,advantage|Disadvantage,disadvantage}">' + options.newCharSettings.initiativeRoll + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_initiativeToTracker : function (options) {
+                return '<dt>Init To Tracker</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.initiativeToTracker ?{Initiative Sent To Tracker?|Yes,true|No,false}">' + options.newCharSettings.initiativeToTracker + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_breakInitiativeTies : function (options) {
+                return '<dt>Break Init Ties</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.breakInitiativeTies ?{Break Initiative Ties?|Yes,true|No,false}">' + options.newCharSettings.breakInitiativeTies + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_showTargetAC : function (options) {
+                return '<dt>Show Target AC</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.showTargetAC ?{Show Target AC?|Yes,true|No,false}">' + options.newCharSettings.showTargetAC + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_showTargetName : function (options) {
+                return '<dt>Show Target Name</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.showTargetName ?{Show Target Name?|Yes,true|No,false}">' + options.newCharSettings.showTargetName + '</a></dd>';
+            },
+            
+            getConfigOption_NewCharSettings_autoAmmo : function (options) {
+                return '<dt>Auto Use Ammo</dt><dd style="margin-bottom: 9px"><a href="!shaped-config --newCharSettings.autoAmmo ?{Auto use Ammo?|Yes,true|No,false}">' + options.newCharSettings.autoAmmo + '</a></dd>';
+            },
+        },
+        
+        /////////////////////////////////////////
         // Command handlers
         /////////////////////////////////////////
         configure: function (options) {
             utils.deepExtend(myState.config, options);
-            report('Configuration', 'Configuration is now: ' + JSON.stringify(myState.config));
+            report('Configuration', this.configUI.getConfigOptions(myState.config));
         },
 
         applyTokenDefaults: function (options) {
