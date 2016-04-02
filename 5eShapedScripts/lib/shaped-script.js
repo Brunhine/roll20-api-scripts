@@ -507,10 +507,10 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
         // Command handlers
         /////////////////////////////////////////
         configure: function (options) {
-            utils.deepExtend(myState.config, options);
+            utils.deepExtend(myState.config, options);            
             report('Configuration', this.configUI.getConfigOptions(myState.config, this.configOptionsSpec));
         },
-
+        
         applyTokenDefaults: function (options) {
             var self = this;
             _.each(options.selected.graphic, function (token) {
