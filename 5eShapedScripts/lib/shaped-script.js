@@ -7,7 +7,7 @@ var cp = require('./command-parser');
 var utils = require('./utils');
 var mpp = require('./monster-post-processor');
 
-var version        = '0.3.3',
+var version        = '0.4.1',
     schemaVersion  = 0.4,
     configDefaults = {
         logLevel: 'INFO',
@@ -20,9 +20,9 @@ var version        = '0.3.3',
                 showPlayers: false
             },
             bar2: {
-                attribute: '',
+                attribute: 'speed',
                 max: false,
-                link: false,
+                link: true,
                 showPlayers: false
             },
             bar3: {
@@ -39,12 +39,12 @@ var version        = '0.3.3',
             deathSaveOutput: '@{output_to_all}',
             initiativeOutput: '@{output_to_all}',
             showNameOnRollTemplate: '@{show_character_name_yes}',
-            rollOptions: '@{roll_2}',
+            rollOptions: '@{normal}',
             initiativeRoll: '@{normal_initiative}',
             initiativeToTracker: '@{initiative_to_tracker_yes}',
             breakInitiativeTies: '@{initiative_tie_breaker_var}',
-            showTargetAC: '@{attacks_vs_target_ac_yes}',
-            showTargetName: '@{attacks_vs_target_name_yes}',
+            showTargetAC: '@{attacks_vs_target_ac_no}',
+            showTargetName: '@{attacks_vs_target_name_no}',
             autoAmmo: '@{ammo_auto_use_var}'
         },
         rollHPOnDrop: true,
@@ -173,7 +173,7 @@ var booleanValidator     = function (value) {
  * @param roll20
  * @param parser
  * @param entityLookup
- * @returns {{handleInput: function, configOptionsSpec: object, configure: function, importStatblock: function, importMonstersFromJson: function, importSpellsFromJson: function, createNewCharacter: function, getImportDataWrapper: function, handleAddToken: function, handleChangeToken: function, rollHPForToken: function, checkForAmmoUpdate: function, checkForDeathSave: function, getRollTemplateOptions: function, processInlinerolls: function, checkInstall: function, registerEventHandlers: function, logWrap: string}}
+ * @returns {{handleInput: function, configOptionsSpec: {}, configure: function, applyTokenDefaults: function, importStatblock: function, importMonstersFromJson: function, importMonsters: function, importSpellsFromJson: function, addSpellsToCharacter:function, hydrateSpellList: function, monsterDataPopulator: function, getTokenRetrievalStrategy: function, nameRetrievalStrategy: function, creationRetrievalStrategy: function, getTokenConfigurer: function, getImportDataWrapper: function, handleAddToken: function, handleChangeToken: function, getHPBar: function, rollHPForToken: function, checkForAmmoUpdate: function, checkForDeathSave: function, getRollTemplateOptions: function, processInlinerolls: function, checkInstall: function, registerEventHandlers: function, logWrap: string}}
  */
 module.exports = function (logger, myState, roll20, parser, entityLookup) {
     var sanitise = logger.wrapFunction('sanitise', require('./sanitise'), '');
@@ -203,7 +203,7 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
     };
 
     var shapedModule = {
-        
+
         /**
          *
          * @param {ChatMessage} msg
@@ -214,38 +214,41 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
               .options(this.configOptionsSpec)
               .addCommand('import-statblock', this.importStatblock.bind(this))
               .option('overwrite', booleanValidator)
+              .option('replace', booleanValidator)
               .withSelection({
-                graphic: {
-                    min: 1,
-                    max: Infinity
-                }
-            })
+                  graphic: {
+                      min: 1,
+                      max: Infinity
+                  }
+              })
               .addCommand('import-monster', this.importMonstersFromJson.bind(this))
+              .option('all', booleanValidator)
               .optionLookup('monsters', entityLookup.findEntity.bind(entityLookup, 'monster'))
               .option('overwrite', booleanValidator)
+              .option('replace', booleanValidator)
               .withSelection({
-                graphic: {
-                    min: 0,
-                    max: 1
-                }
-            })
+                  graphic: {
+                      min: 0,
+                      max: 1
+                  }
+              })
               .addCommand('import-spell', this.importSpellsFromJson.bind(this))
               .optionLookup('spells', entityLookup.findEntity.bind(entityLookup, 'spell'))
               .withSelection({
-                character: {
-                    min: 1,
-                    max: 1
-                }
-            })
+                  character: {
+                      min: 1,
+                      max: 1
+                  }
+              })
               .addCommand('token-defaults', this.applyTokenDefaults.bind(this))
               .withSelection({
-                graphic: {
-                    min: 1,
-                    max: Infinity
-                }
-            })
+                  graphic: {
+                      min: 1,
+                      max: Infinity
+                  }
+              })
               .end();
-            
+
             try {
                 logger.debug(msg);
                 if (msg.type !== 'api') {
@@ -253,7 +256,7 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                     this.checkForDeathSave(msg);
                     return;
                 }
-                
+
                 commandProcessor.processCommand(msg);
 
             }
@@ -272,11 +275,11 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                 logger.prefixString = '';
             }
         },
-        
+
         configOptionsSpec: {
             logLevel: function (value) {
                 var converted = value.toUpperCase();
-                return { valid: _.has(logger, converted), converted: converted };
+                return {valid: _.has(logger, converted), converted: converted};
             },
             tokenSettings: {
                 number: booleanValidator,
@@ -338,198 +341,197 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             ],
             defaultGenderIndex: integerValidator
         },
-        
+
         /////////////////////////////////////////
         // Configuration UI
-        /////////////////////////////////////////      
-        configUI : {
-            getConfigOptions : function (options, optionsSpec) {
-                return this.getConfigOptionGroupGeneral(options, optionsSpec) + 
-                        this.getConfigOptionGroupTokens(options, optionsSpec) +
-                        this.getConfigOptionGroupNewCharSettings(options, optionsSpec);
+        /////////////////////////////////////////
+        configUI: {
+            getConfigOptions: function (options, optionsSpec) {
+                return this.getConfigOptionGroupGeneral(options, optionsSpec) +
+                  this.getConfigOptionGroupTokens(options, optionsSpec) +
+                  this.getConfigOptionGroupNewCharSettings(options, optionsSpec);
             },
-            
-            getConfigOptionGroupGeneral : function (options, optionsSpec) {
+
+            getConfigOptionGroupGeneral: function (options, optionsSpec) {
                 return '<div><h3>General Options:</h3><dl style="margin-top: 0;">' +
-                    this.generalOptions.logLevel(options, optionsSpec) + 
-                    '</dl></div>';
+                  this.generalOptions.logLevel(options, optionsSpec) +
+                  '</dl></div>';
             },
-            
-            getConfigOptionGroupTokens : function (options, optionsSpec) {
+
+            getConfigOptionGroupTokens: function (options, optionsSpec) {
                 return '<div><h3>Token Options:</h3><dl style="margin-top: 0;">' +
-                    this.tokenOptions.numbered(options, optionsSpec) + 
-                    this.tokenOptions.showName(options, optionsSpec) + 
-                    this.tokenOptions.showNameToPlayers(options, optionsSpec) + 
-                    this.tokenOptions.bars(options, optionsSpec) + 
-                    '</dl></div>';
+                  this.tokenOptions.numbered(options, optionsSpec) +
+                  this.tokenOptions.showName(options, optionsSpec) +
+                  this.tokenOptions.showNameToPlayers(options, optionsSpec) +
+                  this.tokenOptions.bars(options, optionsSpec) +
+                  '</dl></div>';
             },
-            
-            getConfigOptionGroupNewCharSettings : function (options, optionsSpec) {
+
+            getConfigOptionGroupNewCharSettings: function (options, optionsSpec) {
                 return '<div><h3>New Characters:</h3><dl>' +
-                    this.newCharOptions.sheetOutput(options, optionsSpec) +
-                    this.newCharOptions.deathSaveOutput(options, optionsSpec) +
-                    this.newCharOptions.initiativeOutput(options, optionsSpec) +
-                    this.newCharOptions.showNameOnRollTemplate(options, optionsSpec) +
-                    this.newCharOptions.rollOptions(options, optionsSpec) +
-                    this.newCharOptions.initiativeRoll(options, optionsSpec) +
-                    this.newCharOptions.initiativeToTracker(options, optionsSpec) +
-                    this.newCharOptions.breakInitiativeTies(options, optionsSpec) +
-                    this.newCharOptions.showTargetAC(options, optionsSpec) +
-                    this.newCharOptions.showTargetName(options, optionsSpec) +
-                    this.newCharOptions.autoAmmo(options, optionsSpec) +
-                    '</dl></div>';
+                  this.newCharOptions.sheetOutput(options, optionsSpec) +
+                  this.newCharOptions.deathSaveOutput(options, optionsSpec) +
+                  this.newCharOptions.initiativeOutput(options, optionsSpec) +
+                  this.newCharOptions.showNameOnRollTemplate(options, optionsSpec) +
+                  this.newCharOptions.rollOptions(options, optionsSpec) +
+                  this.newCharOptions.initiativeRoll(options, optionsSpec) +
+                  this.newCharOptions.initiativeToTracker(options, optionsSpec) +
+                  this.newCharOptions.breakInitiativeTies(options, optionsSpec) +
+                  this.newCharOptions.showTargetAC(options, optionsSpec) +
+                  this.newCharOptions.showTargetName(options, optionsSpec) +
+                  this.newCharOptions.autoAmmo(options, optionsSpec) +
+                  '</dl></div>';
             },
-            
-            generalOptions : {
-                logLevel : function (options, optionsSpec) {
-                    return '<dt>Log Level</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --logLevel ?{Logging Level? (use with care)?|INFO|ERROR|WARN|DEBUG|TRACE}">' + 
-                        options.logLevel + '</dd>';
+
+            generalOptions: {
+                logLevel: function (options, optionsSpec) {
+                    return '<dt>Log Level</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --logLevel ?{Logging Level? (use with care)?|INFO|ERROR|WARN|DEBUG|TRACE}">' +
+                      options.logLevel + '</dd>';
                 }
-            },  
-            
-            tokenOptions : {
-                numbered : function (options, optionsSpec) {
-                    return '<dt>Numbered Tokens</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --tokenSettings.number ?{Make Numbered Tokens (for TNN script)?|Yes,true|No,false}">' +
-                         options.tokenSettings.number + '</a></dd>';
-                }, 
-                
-                showName : function (options, optionsSpec) {
-                    return '<dt>Show Name Tag</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --tokenSettings.showName ?{Show Name Tag?|Yes,true|No,false}">' + 
-                        options.tokenSettings.showName + '</a></dd>';
+            },
+
+            tokenOptions: {
+                numbered: function (options, optionsSpec) {
+                    return '<dt>Numbered Tokens</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --tokenSettings.number ?{Make Numbered Tokens (for TNN script)?|Yes,true|No,false}">' +
+                      options.tokenSettings.number + '</a></dd>';
                 },
-                
-                showNameToPlayers : function (options, optionsSpec) {
-                    return '<dt>Show Name to Players</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --tokenSettings.showNameToPlayers ?{Show Name Tag To Players?|Yes,true|No,false}">' + 
-                        options.tokenSettings.showNameToPlayers + '</a></dd>';
+
+                showName: function (options, optionsSpec) {
+                    return '<dt>Show Name Tag</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --tokenSettings.showName ?{Show Name Tag?|Yes,true|No,false}">' +
+                      options.tokenSettings.showName + '</a></dd>';
                 },
-                
-                bars : function (options, optionsSpec) {
+
+                showNameToPlayers: function (options, optionsSpec) {
+                    return '<dt>Show Name to Players</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --tokenSettings.showNameToPlayers ?{Show Name Tag To Players?|Yes,true|No,false}">' +
+                      options.tokenSettings.showNameToPlayers + '</a></dd>';
+                },
+
+                bars: function (options, optionsSpec) {
                     var settings = options.tokenSettings;
                     var res = '';
-                    
+
                     _.chain(settings).pick(['bar1', 'bar2', 'bar3']).each(function (bar, barName) {
                         var attribute = bar.attribute;
                         if (!bar.attribute) {
                             attribute = '[not set]';
                         }
-                        res += '<dt>Options for ' + barName + '</dt>' + 
-                            '<dd style="margin-bottom: 9px"><table style="font-size: 1em;">' + 
-                            '<tr><td>Attribute:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.attribute ?{Attribute for bar? (leave empty to clear)}">' + attribute + '</a></td></tr>' + 
-                            '<tr><td>Set Max:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.max ?{Set bar max value?|Yes,true|No,false}">' + bar.max + '</td></tr>' + 
-                            '<tr><td>Link Bar:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.link ?{Keep bar linked?|Yes,true|No,false}">' + bar.link + '</a></td></tr > ' + 
-                            '<tr><td>Show to Players:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.showPlayers ?{Show bar to players?|Yes,true|No,false}">' + bar.showPlayers + '</td></tr>' + 
-                            '</table></dd>';
+                        res += '<dt>Options for ' + barName + '</dt>' +
+                          '<dd style="margin-bottom: 9px"><table style="font-size: 1em;">' +
+                          '<tr><td>Attribute:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.attribute ?{Attribute for bar? (leave empty to clear)}">' + attribute + '</a></td></tr>' +
+                          '<tr><td>Set Max:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.max ?{Set bar max value?|Yes,true|No,false}">' + bar.max + '</td></tr>' +
+                          '<tr><td>Link Bar:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.link ?{Keep bar linked?|Yes,true|No,false}">' + bar.link + '</a></td></tr > ' +
+                          '<tr><td>Show to Players:</td><td><a href="!shaped-config --tokenSettings.' + barName + '.showPlayers ?{Show bar to players?|Yes,true|No,false}">' + bar.showPlayers + '</td></tr>' +
+                          '</table></dd>';
                     });
-                    
+
                     return res;
                 }
             },
-            
-            newCharOptions : {
-                sheetOutput : function (options, optionsSpec) {
+
+            newCharOptions: {
+                sheetOutput: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.sheetOutput())[options.newCharSettings.sheetOutput];
                     return '<dt>Sheet Output</dt><dd style="margin-bottom: 9px">' +
-                        '<a href="!shaped-config --newCharSettings.sheetOutput ?{Sheet Output?|Public,public|Whisper to GM,whisper}">' +
-                         optVal + '</a></dd>';
+                      '<a href="!shaped-config --newCharSettings.sheetOutput ?{Sheet Output?|Public,public|Whisper to GM,whisper}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                deathSaveOutput : function (options, optionsSpec) {
+
+                deathSaveOutput: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.deathSaveOutput())[options.newCharSettings.deathSaveOutput];
-                    return '<dt>Death Save Output</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.deathSaveOutput ?{Death Save Output?|Public,public|Whisper to GM,whisper}">' +
-                        optVal + '</a></dd>';
+                    return '<dt>Death Save Output</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.deathSaveOutput ?{Death Save Output?|Public,public|Whisper to GM,whisper}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                initiativeOutput : function (options, optionsSpec) {
+
+                initiativeOutput: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.initiativeOutput())[options.newCharSettings.initiativeOutput];
-                    return '<dt>Initiative Output</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.initiativeOutput ?{Initiative Output?|Public,public|Whisper to GM,whisper}">' +
-                        optVal + '</a></dd>';
+                    return '<dt>Initiative Output</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.initiativeOutput ?{Initiative Output?|Public,public|Whisper to GM,whisper}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                showNameOnRollTemplate : function (options, optionsSpec) {
+
+                showNameOnRollTemplate: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.showNameOnRollTemplate())[options.newCharSettings.showNameOnRollTemplate];
-                    return '<dt>Show Name on Roll Template</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.showNameOnRollTemplate ?{Show Name on Roll Template?|Yes,true|No,false}">' +
-                         optVal + '</a></dd>';
+                    return '<dt>Show Name on Roll Template</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.showNameOnRollTemplate ?{Show Name on Roll Template?|Yes,true|No,false}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                rollOptions : function (options, optionsSpec) {
+
+                rollOptions: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.rollOptions())[options.newCharSettings.rollOptions];
-                    return '<dt>Roll Option</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.rollOptions ?{Roll Option?|Normal,normal|Advantage,advantage|Disadvantage,disadvantage|Roll Two,two}">' +
-                        optVal + '</a></dd>';
+                    return '<dt>Roll Option</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.rollOptions ?{Roll Option?|Normal,normal|Advantage,advantage|Disadvantage,disadvantage|Roll Two,two}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                initiativeRoll : function (options, optionsSpec) {
+
+                initiativeRoll: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.initiativeRoll())[options.newCharSettings.initiativeRoll];
-                    return '<dt>Init Roll</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.initiativeRoll ?{Initiative Roll?|Normal,normal|Advantage,advantage|Disadvantage,disadvantage}">' +
-                        optVal + '</a></dd>';
+                    return '<dt>Init Roll</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.initiativeRoll ?{Initiative Roll?|Normal,normal|Advantage,advantage|Disadvantage,disadvantage}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                initiativeToTracker : function (options, optionsSpec) {
+
+                initiativeToTracker: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.initiativeToTracker())[options.newCharSettings.initiativeToTracker];
-                    return '<dt>Init To Tracker</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.initiativeToTracker ?{Initiative Sent To Tracker?|Yes,true|No,false}">' + 
-                        optVal + '</a></dd>';
+                    return '<dt>Init To Tracker</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.initiativeToTracker ?{Initiative Sent To Tracker?|Yes,true|No,false}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                breakInitiativeTies : function (options, optionsSpec) {
+
+                breakInitiativeTies: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.breakInitiativeTies())[options.newCharSettings.breakInitiativeTies];
-                    return '<dt>Break Init Ties</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.breakInitiativeTies ?{Break Initiative Ties?|Yes,true|No,false}">' + 
-                        optVal + '</a></dd>';
+                    return '<dt>Break Init Ties</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.breakInitiativeTies ?{Break Initiative Ties?|Yes,true|No,false}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                showTargetAC : function (options, optionsSpec) {
+
+                showTargetAC: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.showTargetAC())[options.newCharSettings.showTargetAC];
-                    return '<dt>Show Target AC</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.showTargetAC ?{Show Target AC?|Yes,true|No,false}">' + 
-                        optVal + '</a></dd>';
+                    return '<dt>Show Target AC</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.showTargetAC ?{Show Target AC?|Yes,true|No,false}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                showTargetName : function (options, optionsSpec) {
+
+                showTargetName: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.showTargetName())[options.newCharSettings.showTargetName];
-                    return '<dt>Show Target Name</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.showTargetName ?{Show Target Name?|Yes,true|No,false}">' + 
-                        optVal + '</a></dd>';
+                    return '<dt>Show Target Name</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.showTargetName ?{Show Target Name?|Yes,true|No,false}">' +
+                      optVal + '</a></dd>';
                 },
-                
-                autoAmmo : function (options, optionsSpec) {
+
+                autoAmmo: function (options, optionsSpec) {
                     var optVal = _.invert(optionsSpec.newCharSettings.autoAmmo())[options.newCharSettings.autoAmmo];
-                    return '<dt>Auto Use Ammo</dt><dd style="margin-bottom: 9px">' + 
-                        '<a href="!shaped-config --newCharSettings.autoAmmo ?{Auto use Ammo?|Yes,true|No,false}">' + 
-                        optVal + '</a></dd>';
+                    return '<dt>Auto Use Ammo</dt><dd style="margin-bottom: 9px">' +
+                      '<a href="!shaped-config --newCharSettings.autoAmmo ?{Auto use Ammo?|Yes,true|No,false}">' +
+                      optVal + '</a></dd>';
                 }
-            },
+            }
         },
-        
+
         /////////////////////////////////////////
         // Command handlers
         /////////////////////////////////////////
         configure: function (options) {
-            utils.deepExtend(myState.config, options);            
+            utils.deepExtend(myState.config, options);
             report('Configuration', this.configUI.getConfigOptions(myState.config, this.configOptionsSpec));
         },
-        
+
         applyTokenDefaults: function (options) {
             var self = this;
             _.each(options.selected.graphic, function (token) {
                 var represents = token.get('represents');
                 var character = roll20.getObj('character', represents);
                 if (character) {
-                    self.setTokenDefaults(token, character);
+                    self.getTokenConfigurer(token)(character);
                 }
             });
         },
 
         importStatblock: function (options) {
-
             logger.info('Importing statblocks for tokens $$$', options.selected.graphic);
             var self = this;
             _.each(options.selected.graphic, function (token) {
@@ -537,27 +539,72 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                 if (text) {
                     text = sanitise(unescape(text), logger);
                     var processedNpc = mpp(parser.parse(text).npc, entityLookup);
-                    //noinspection JSUnresolvedVariable
-                    var character = self.createNewCharacter(processedNpc, token, options.overwrite);
-                    if (character) {
+                    self.importMonsters([processedNpc], options, token, [function (character) {
                         character.set('gmnotes', text.replace(/\n/g, '<br>'));
-                        report('Import Success', 'Character [' + character.get('name') + '] successfully created.');
-                    }
+                    }]);
                 }
             });
         },
 
         importMonstersFromJson: function (options) {
-            var self = this;
-            var token = options.selected.graphic;
-            if (token && _.size(options.monsters) > 1) {
-                reportError('Cannot have a token selected when importing more than one monster');
-                return;
+            var characterProcessors = [];
+            characterProcessors.push(this.hydrateSpellList.bind(this));
+            if (options.all) {
+                options.monsters = entityLookup.getAll('monster');
+                delete options.all;
             }
-            var importedList = _.chain(options.monsters)
+
+
+            this.importMonsters(options.monsters.slice(0, 20), options, options.selected.graphic, characterProcessors);
+            options.monsters = options.monsters.slice(20);
+            var self = this;
+            if (!_.isEmpty(options.monsters)) {
+                setTimeout(function () {
+                    self.importMonstersFromJson(options);
+                }, 200);
+            }
+
+        },
+
+        importMonsters: function (monsters, options, token, characterProcessors) {
+            var characterRetrievalStrategies = [];
+
+            if (token) {
+                characterProcessors.push(this.getAvatarCopier(token).bind(this));
+                if (_.size(monsters) === 1) {
+                    characterProcessors.push(this.getTokenConfigurer(token).bind(this));
+                    if (options.replace || options.overwrite) {
+                        characterRetrievalStrategies.push(this.getTokenRetrievalStrategy(token).bind(this));
+                    }
+                }
+            }
+            if (options.replace) {
+                characterRetrievalStrategies.push(this.nameRetrievalStrategy);
+            }
+
+            characterRetrievalStrategies.push(this.creationRetrievalStrategy.bind(this));
+            characterProcessors.push(this.monsterDataPopulator.bind(this));
+
+            var errors = [];
+            var importedList = _.chain(monsters)
               .map(function (monsterData) {
-                  self.hydrateSpellList(monsterData);
-                  var character = self.createNewCharacter(monsterData, token, options.overwrite);
+
+                  var character = _.reduce(characterRetrievalStrategies, function (result, strategy) {
+                      return result || strategy(monsterData.name, errors);
+                  }, null);
+
+                  if (!character) {
+                      logger.error('Failed to find or create character for monster $$$', monsterData.name);
+                      return null;
+                  }
+
+                  var oldAttrs = roll20.findObjs({type: 'attribute', characterid: character.id});
+                  _.invoke(oldAttrs, 'remove');
+                  character.set('name', monsterData.name);
+
+                  _.each(characterProcessors, function (proc) {
+                      proc(character, monsterData);
+                  });
                   return character && character.get('name');
               })
               .compact()
@@ -567,15 +614,17 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                 var monsterList = importedList.join('</li><li>');
                 report('Import Success', 'Added the following monsters: <ul><li>' + monsterList + '</li></ul>');
             }
-
-
+            if (!_.isEmpty(errors)) {
+                var errorList = errors.join('</li><li>');
+                reportError('The following errors occurred on import:  <ul><li>' + errorList + '</li></ul>');
+            }
         },
 
         importSpellsFromJson: function (options) {
             this.addSpellsToCharacter(options.selected.character, options.spells);
         },
 
-        addSpellsToCharacter: function (character, spells) {
+        addSpellsToCharacter: function (character, spells, noreport) {
             var gender = roll20.getAttrByName(character.id, 'gender');
 
             var defaultIndex = Math.min(myState.config.defaultGenderIndex, myState.config.genderPronouns.length);
@@ -591,12 +640,14 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                 spells: srdConverter.convertSpells(spells, pronounInfo)
             };
             this.getImportDataWrapper(character).mergeImportData(importData);
-            report('Import Success', 'Added the following spells:  <ul><li>' + _.map(importData.spells, function (spell) {
-                  return spell.name;
-              }).join('</li><li>') + '</li></ul>');
+            if (!noreport) {
+                report('Import Success', 'Added the following spells:  <ul><li>' + _.map(importData.spells, function (spell) {
+                      return spell.name;
+                  }).join('</li><li>') + '</li></ul>');
+            }
         },
 
-        hydrateSpellList: function (monster) {
+        hydrateSpellList: function (character, monster) {
             if (!monster.spells) {
                 return;
             }
@@ -605,115 +656,87 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
             });
         },
 
-        createNewCharacter: function (monsterData, token, overwrite) {
+
+        monsterDataPopulator: function (character, monsterData) {
+            _.each(myState.config.newCharSettings, function (value, key) {
+                var attribute = roll20.getOrCreateAttr(character.id, configToAttributeLookup[key]);
+                attribute.set('current', _.isBoolean(value) ? (value ? 1 : 0) : value);
+            });
 
             var converted = srdConverter.convertMonster(monsterData);
-
-            var character;
-            if (token && token.get('represents')) {
-                character = roll20.getObj('character', token.get('represents'));
-                if (character) {
-                    if (!overwrite) {
-                        reportError('Found character "' + character.get('name') + '" for token already but overwrite was not set. Try again with --overwrite if you wish to replace this character');
-                        return;
-                    }
-                    else {
-                        var oldAttrs = roll20.findObjs({type: 'attribute', characterid: character.id});
-                        character.set('name', converted.character_name);// jshint ignore:line
-                        _.invoke(oldAttrs, 'remove');
-                    }
-                }
-            }
-
             logger.debug('Converted monster data: $$$', converted);
-            if (!character) {
-                character = roll20.createObj('character', {
-                    name: converted.character_name, // jshint ignore:line
-                    avatar: token ? token.get('imgsrc') : ''
-                });
-            }
-
-
-            if (!character) {
-                logger.error('Failed to create character for converted monsterData $$$', converted);
-                throw 'Failed to create new character';
-            }
-
-            if (token) {
-                this.setTokenDefaults(token, character);
-            }
-
             var expandedSpells = converted.spells;
             delete converted.spells;
             this.getImportDataWrapper(character).setNewImportData({npc: converted});
             if (expandedSpells) {
-                this.addSpellsToCharacter(character, expandedSpells);
+                this.addSpellsToCharacter(character, expandedSpells, true);
             }
-
-            this.setCharacterDefaults(character);
             return character;
 
         },
 
-        setCharacterDefaults: function (character) {
-            _.each(myState.config.newCharSettings, function (value, key) {
-                var attribute = {
-                    name: configToAttributeLookup[key],
-                    current: _.isBoolean(value) ? (value ? 1 : 0) : value,
-                    characterid: character.id
-                };
-                roll20.createObj('attribute', attribute);
-            });
+        getTokenRetrievalStrategy: function (token) {
+            return function (name, errors) {
+                return token && roll20.getObj('character', token.get('represents'));
+            };
         },
 
-        setTokenDefaults: function (token, character) {
-            token.set('represents', character.id);
-            token.set('name', character.get('name'));
-            var settings = myState.config.tokenSettings;
-            if (settings.number && token.get('name').indexOf('%%NUMBERED%%') === -1) {
-                token.set('name', token.get('name') + ' %%NUMBERED%%');
+        nameRetrievalStrategy: function (name, errors) {
+            var chars = roll20.findObjs({type: 'character', name: name});
+            if (chars.length > 1) {
+                errors.push('More than one existing character found with name "' + name + '". Can\'t replace');
             }
+            else {
+                return chars[0];
+            }
+        },
 
-            _.chain(settings)
-              .pick(['bar1', 'bar2', 'bar3'])
-              .each(function (bar, barName) {
-                  var attribute = roll20.getOrCreateAttr(character.id, bar.attribute);
-                  if (attribute) {
-                      token.set(barName + '_value', attribute.get('current'));
-                      if (bar.max) {
-                          token.set(barName + '_max', attribute.get('max'));
-                      }
-                      token.set('showplayers_' + barName, bar.showPlayers);
-                      if (bar.link) {
-                          token.set(barName + '_link', attribute.id);
-                      }
-                  }
-              });
+        creationRetrievalStrategy: function (name, errors) {
+            if (!_.isEmpty(roll20.findObjs({type: 'character', name: name}))) {
+                errors.push('Can\'t create new character with name "' + name + '" because one already exists with that name. Perhaps you want --replace?');
+            }
+            else {
+                return roll20.createObj('character', {name: name});
+            }
+        },
 
-            token.set('showname', settings.showName);
-            token.set('showplayers_name', settings.showNameToPlayers);
+        getAvatarCopier: function (token) {
+            return function (character) {
+                character.set('avatar', token.get('imgsrc'));
+            };
+        },
+
+        getTokenConfigurer: function (token) {
+            return function (character) {
+                token.set('represents', character.id);
+                token.set('name', character.get('name'));
+                var settings = myState.config.tokenSettings;
+                if (settings.number && token.get('name').indexOf('%%NUMBERED%%') === -1) {
+                    token.set('name', token.get('name') + ' %%NUMBERED%%');
+                }
+
+                _.chain(settings)
+                  .pick(['bar1', 'bar2', 'bar3'])
+                  .each(function (bar, barName) {
+                      var attribute = roll20.getOrCreateAttr(character.id, bar.attribute);
+                      if (attribute) {
+                          token.set(barName + '_value', attribute.get('current'));
+                          if (bar.max) {
+                              token.set(barName + '_max', attribute.get('max'));
+                          }
+                          token.set('showplayers_' + barName, bar.showPlayers);
+                          if (bar.link) {
+                              token.set(barName + '_link', attribute.id);
+                          }
+                      }
+                  });
+
+                token.set('showname', settings.showName);
+                token.set('showplayers_name', settings.showNameToPlayers);
+            };
         },
 
         getImportDataWrapper: function (character) {
-            var getOrCreateAttribute = function (name) {
-                var attribute = {
-                    type: 'attribute',
-                    name: name,
-                    characterid: character.id
-                };
-                var attrs = roll20.findObjs(attribute);
-                if (attrs && attrs.length === 1) {
-                    return attrs[0];
-                }
-                else {
-                    var attr = roll20.createObj('attribute', attribute);
-                    if (!attr) {
-                        logger.error('Failed to create attribute $$$ on character $$$', name, character.get('name'));
-                        throw 'Failed to set import data on character';
-                    }
-                    return attr;
-                }
-            };
 
 
             return {
@@ -721,15 +744,15 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                     if (_.isEmpty(importData)) {
                         return;
                     }
-                    getOrCreateAttribute('import_data').set('current', JSON.stringify(importData));
-                    getOrCreateAttribute('import_data_present').set('current', 'on');
+                    roll20.setAttrByName(character.id, 'import_data', JSON.stringify(importData));
+                    roll20.setAttrByName(character.id, 'import_data_present', 'on');
                 },
                 mergeImportData: function (importData) {
                     if (_.isEmpty(importData)) {
                         return;
                     }
-                    var attr = getOrCreateAttribute('import_data');
-                    var dataPresentAttr = getOrCreateAttribute('import_data_present');
+                    var attr = roll20.getOrCreateAttr(character.id, 'import_data');
+                    var dataPresentAttr = roll20.getOrCreateAttr(character.id, 'import_data_present');
                     var current = {};
                     try {
                         if (!_.isEmpty(attr.get('current').trim())) {
@@ -899,7 +922,6 @@ module.exports = function (logger, myState, roll20, parser, entityLookup) {
                     name: options.characterName
                 })[0];
 
-                //TODO: Could we output a chat button maybe in the roll_2 case?
                 //TODO: Do we want to output text on death/recovery?
                 var increment = function (val) {
                     return ++val;
