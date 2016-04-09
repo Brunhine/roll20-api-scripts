@@ -36,7 +36,6 @@ module.exports = {
         'use strict';
         var br, setting, isAdvantage, isDisadvantage,
             char = [];
-        roll20.log(msg);
         char.push(msg.get('_characterid'));
         br = this.buildResources(_.uniq(_.union(char)));
         setting = msg.get('current');
@@ -188,7 +187,10 @@ module.exports = {
             //    return;
             //}
             
-            roll20.sendChat('AdvantageTracker', ' &{template:5e-shaped} {{character_name=' + r.character.get('name') + '}} @{' + r.character.get('name') + '|show_character_name} {{title=' + self.capitalizeFirstLetter(type) + '}} {{text_top=' + r.character.get('name') + ' is rolling ' + msgByType[type] + '!}}');
+            roll20.sendChat('AdvantageTracker', 
+                ' &{template:5e-shaped} {{character_name=' + r.character.get('name') + '}} @{' + r.character.get('name') +
+                 '|show_character_name} {{title=' + self.capitalizeFirstLetter(type) + '}} {{text_top=' + r.character.get('name') +
+                  ' is rolling ' + msgByType[type] + '!}}');
         });
     },
 };

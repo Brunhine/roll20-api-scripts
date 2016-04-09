@@ -1287,6 +1287,13 @@ function ShapedScripts(logger, myState, roll20, parser, entityLookup, reporter) 
         roll20.on('chat:message', this.handleInput.bind(this));
         roll20.on('add:token', this.handleAddToken.bind(this));
         roll20.on('change:token', this.handleChangeToken.bind(this));
+        roll20.on('add:graphic', at.updateToken);
+        roll20.on('change:graphic', at.updateToken);
+        roll20.on('change:attribute', function (msg) {
+                    if (msg.get('name') === 'roll_setting') {
+                        at.updateSetting(msg);
+                    }
+                });
         this.registerChatWatcher(this.handleDeathSave, ['deathSavingThrow', 'character', 'roll1']);
         this.registerChatWatcher(this.handleAmmo, ['ammoName', 'character']);
         this.registerChatWatcher(this.handleFX, ['fx', 'character']);
